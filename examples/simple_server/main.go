@@ -33,10 +33,20 @@ func main() {
     }, funcr.Options{})
 
     // Create server configuration
-    config := mcp.Config{
-        Port:     8080,
-        Host:     "localhost",
-        LogLevel: "info",
+    serverConfig := mcp.ServerConfig{
+        Name: "example-server",
+        Type: "example",
+        Host: mcp.DefaultHost,
+        Port: mcp.DefaultPort,
+        Capabilities: map[string]bool{
+            "echo": true,
+        },
+    }
+
+    // Register server with Claude Desktop
+    if err := mcp.RegisterServer(serverConfig); err != nil {
+        logger.Error(err, "failed to register server")
+        os.Exit(1)
     }
 
     // Create handler
@@ -45,7 +55,11 @@ func main() {
     }
 
     // Create and start server
-    server := mcp.NewServer(config, logger, handler)
+    server := mcp.NewServer(mcp.Config{
+        Port:     serverConfig.Port,
+        Host:     serverConfig.Host,
+        LogLevel: "info",
+    }, logger, handler)
 
     // Setup context with cancellation
     ctx, cancel := context.WithCancel(context.Background())

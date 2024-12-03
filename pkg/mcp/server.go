@@ -26,7 +26,7 @@ func NewServer(config Config, logger logr.Logger, handler Handler) Server {
 
 func (s *server) Start(ctx context.Context) error {
     mux := http.NewServeMux()
-    mux.HandleFunc("/mcp", s.handleMCP)
+    mux.HandleFunc("/", s.handleJSONRPC)
 
     s.srv = &http.Server{
         Addr:    fmt.Sprintf("%s:%d", s.config.Host, s.config.Port),
@@ -52,24 +52,68 @@ func (s *server) Stop(ctx context.Context) error {
     return s.srv.Shutdown(ctx)
 }
 
-func (s *server) handleMCP(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleJSONRPC(w http.ResponseWriter, r *http.Request) {
     if r.Method != http.MethodPost {
         http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
         return
     }
 
-    var req Request
+    var req JSONRPCRequest
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        http.Error(w, "invalid request body", http.StatusBadRequest)
+        writeJSONRPCError(w, &JSONRPCResponse{
+            JSONRPC: "2.0",
+            Error: &RPCError{
+                Code: -32700,
+                Message: "Parse error",
+            },
+            ID: nil,
+        })
         return
     }
 
-    resp, err := s.handler.HandleRequest(r.Context(), &req)
+    // Validate JSON-RPC version
+    if req.JSONRPC != "2.0" {
+        writeJSONRPCError(w, &JSONRPCResponse{
+            JSONRPC: "2.0",
+            Error: &RPCError{
+                Code: -32600,
+                Message: "Invalid Request",
+            },
+            ID: req.ID,
+        })
+        return
+    }
+
+    // Handle the method
+    result, err := s.handler.HandleMethod(r.Context(), req.Method, req.Params)
     if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
+        writeJSONRPCError(w, &JSONRPCResponse{
+            JSONRPC: "2.0",
+            Error: &RPCError{
+                Code: -32603,
+                Message: err.Error(),
+            },
+            ID: req.ID,
+        })
         return
     }
 
+    // Send response
+    response := &JSONRPCResponse{
+        JSONRPC: "2.0",
+        Result:  result,
+        ID:      req.ID,
+    }
+
+    writeJSONRPCResponse(w, response)
+}
+
+func writeJSONRPCError(w http.ResponseWriter, response *JSONRPCResponse) {
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(resp)
+    json.NewEncoder(w).Encode(response)
+}
+
+func writeJSONRPCResponse(w http.ResponseWriter, response *JSONRPCResponse) {
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
 }

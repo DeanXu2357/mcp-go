@@ -2,39 +2,34 @@ package mcp
 
 import (
     "context"
-    "github.com/go-logr/logr"
+    "encoding/json"
 )
 
-// Config represents the MCP server configuration
-type Config struct {
-    Port     int
-    Host     string
-    LogLevel string
+// JSONRPCRequest represents a JSON-RPC 2.0 request
+type JSONRPCRequest struct {
+    JSONRPC string          `json:"jsonrpc"`
+    Method  string          `json:"method"`
+    Params  json.RawMessage `json:"params"`
+    ID      interface{}     `json:"id"`
 }
 
-// Server represents an MCP server instance
-type Server interface {
-    // Start starts the MCP server
-    Start(ctx context.Context) error
-    // Stop stops the MCP server
-    Stop(ctx context.Context) error
+// JSONRPCResponse represents a JSON-RPC 2.0 response
+type JSONRPCResponse struct {
+    JSONRPC string       `json:"jsonrpc"`
+    Result  interface{} `json:"result,omitempty"`
+    Error   *RPCError   `json:"error,omitempty"`
+    ID      interface{} `json:"id"`
+}
+
+// RPCError represents a JSON-RPC 2.0 error
+type RPCError struct {
+    Code    int         `json:"code"`
+    Message string      `json:"message"`
+    Data    interface{} `json:"data,omitempty"`
 }
 
 // Handler defines the interface for handling MCP requests
 type Handler interface {
-    // HandleRequest handles an incoming MCP request
-    HandleRequest(ctx context.Context, req *Request) (*Response, error)
-}
-
-// Request represents an MCP request
-type Request struct {
-    Action  string                 `json:"action"`
-    Payload map[string]interface{} `json:"payload"`
-}
-
-// Response represents an MCP response
-type Response struct {
-    Status  string                 `json:"status"`
-    Data    map[string]interface{} `json:"data,omitempty"`
-    Error   string                 `json:"error,omitempty"`
+    // HandleMethod handles a specific method call
+    HandleMethod(ctx context.Context, method string, params json.RawMessage) (interface{}, error)
 }
