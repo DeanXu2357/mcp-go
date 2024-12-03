@@ -2,6 +2,7 @@ package main
 
 import (
     "context"
+    "encoding/json"
     "log"
     "os"
     "os/signal"
@@ -14,16 +15,58 @@ import (
 
 type exampleHandler struct {
     logger logr.Logger
+    initialized bool
 }
 
-func (h *exampleHandler) HandleRequest(ctx context.Context, req *mcp.Request) (*mcp.Response, error) {
-    h.logger.Info("handling request", "action", req.Action)
+func (h *exampleHandler) Initialize(ctx context.Context, params *mcp.InitializeParams) (*mcp.InitializeResult, error) {
+    h.logger.Info("initializing server", "protocolVersion", params.ProtocolVersion)
     
-    // Echo back the request payload
-    return &mcp.Response{
-        Status: "success",
-        Data:   req.Payload,
+    // Check protocol version compatibility
+    if params.ProtocolVersion != mcp.ProtocolVersion {
+        h.logger.Info("protocol version mismatch", 
+            "client", params.ProtocolVersion,
+            "server", mcp.ProtocolVersion)
+    }
+
+    h.initialized = true
+    
+    return &mcp.InitializeResult{
+        ProtocolVersion: mcp.ProtocolVersion,
+        ServerInfo: mcp.ServerInfo{
+            Name:        "example-server",
+            Version:     "0.1.0",
+            Description: "An example MCP server",
+        },
+        Capabilities: map[string]bool{
+            "echo": true,
+        },
     }, nil
+}
+
+func (h *exampleHandler) HandleMethod(ctx context.Context, method string, params json.RawMessage) (interface{}, error) {
+    // Ensure server is initialized
+    if !h.initialized {
+        return nil, &mcp.RPCError{
+            Code:    -32002,
+            Message: "Server not initialized",
+        }
+    }
+
+    h.logger.Info("handling method", "method", method)
+    
+    switch method {
+    case "echo":
+        var data map[string]interface{}
+        if err := json.Unmarshal(params, &data); err != nil {
+            return nil, err
+        }
+        return data, nil
+    default:
+        return nil, &mcp.RPCError{
+            Code:    -32601,
+            Message: "Method not found",
+        }
+    }
 }
 
 func main() {
