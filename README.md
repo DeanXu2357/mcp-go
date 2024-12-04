@@ -9,7 +9,7 @@ A Go SDK for implementing Model Context Protocol (MCP) servers.
 ## Installation
 
 ```bash
-go get github.com/yourusername/mcp_go_sdk
+go get github.com/DeanXu2357/mcp-go
 ```
 
 ## Quick Start
@@ -20,7 +20,7 @@ Here's a simple example of how to create an MCP server:
 package main
 
 import (
-    "github.com/yourusername/mcp_go_sdk/pkg/mcp"
+    "github.com/DeanXu2357/mcp-go/pkg/mcp"
 )
 
 func main() {
